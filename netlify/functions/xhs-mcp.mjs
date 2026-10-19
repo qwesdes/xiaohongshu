@@ -1219,15 +1219,26 @@ const XHSLite = (() => {
     }
   }
 
-  async function getManagedComments(feedId, env, requestRnoteApiKey) {
+  async function getManagedComments(feedId, env, requestRnoteApiKey, xsecToken = '') {
     const rnoteConfigured = !!(requestRnoteApiKey || env?.RNOTE_API_KEY);
     if (!rnoteConfigured) {
+      const cookieStr = env?.XHS_COOKIE || process.env.XHS_COOKIE || '';
+      if (cookieStr) {
+        try {
+          const expRes = await experimentalComments(cookieStr, { feed_id: feedId, xsec_token: xsecToken });
+          const rawComments = findCommentArray(expRes?.data ?? expRes) || [];
+          if (expRes?.success && rawComments.length >= 0) {
+            return {
+              success: true,
+              comments: rawComments.map(normComment).filter((c) => c.content),
+              provider: 'spider-v3',
+            };
+          }
+        } catch (_) {}
+      }
       return {
         success: false,
-        error: {
-          code: 'COMMENT_PROVIDER_NOT_CONFIGURED',
-          message: '真实评论服务尚未配置',
-        },
+        error: '真实评论服务尚未配置',
       };
     }
 
